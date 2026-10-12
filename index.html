@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Flappy Bird Token Mini App</title>
+    <title>PyBird Token Mini App</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
@@ -26,8 +26,8 @@
 <body>
 
     <div id="user-info">
-        👤 <span id="username">Player</span> | 🪙 Tổng: <span id="total-tokens" class="highlight">0</span> FBP<br>
-        ⚡ Lượt hôm nay: <span id="turns-left" class="highlight">10</span>/10 | 🎯 Hôm nay: <span id="daily-tokens" class="highlight">0</span>/10.000 FBP
+        👤 <span id="username">Player</span> | 🪙 Tổng: <span id="total-tokens" class="highlight">0</span> PYBIRD<br>
+        ⚡ Lượt hôm nay: <span id="turns-left" class="highlight">10</span>/10 | 🎯 Hôm nay: <span id="daily-tokens" class="highlight">0</span>/10.000 PYBIRD
     </div>
     
     <div id="game-container">
@@ -50,19 +50,19 @@
 
         // --- QUẢN LÝ DỮ LIỆU BẰNG LOCALSTORAGE ---
         const TODAY_KEY = new Date().toISOString().slice(0, 10);
-        let lastPlayDate = localStorage.getItem('fbp_play_date');
+        let lastPlayDate = localStorage.getItem('pybird_play_date');
         
-        let totalTokens = parseInt(localStorage.getItem('fbp_total_tokens') || '0');
-        let dailyTokens = parseInt(localStorage.getItem('fbp_daily_tokens') || '0');
-        let turnsLeft = parseInt(localStorage.getItem('fbp_turns_left') || DAILY_TURN_LIMIT.toString());
+        let totalTokens = parseInt(localStorage.getItem('pybird_total_tokens') || '0');
+        let dailyTokens = parseInt(localStorage.getItem('pybird_daily_tokens') || '0');
+        let turnsLeft = parseInt(localStorage.getItem('pybird_turns_left') || DAILY_TURN_LIMIT.toString());
 
         // Sang ngày mới: Reset lượt chơi và hạn mức ngày
         if (lastPlayDate !== TODAY_KEY) {
             turnsLeft = DAILY_TURN_LIMIT;
             dailyTokens = 0;
-            localStorage.setItem('fbp_play_date', TODAY_KEY);
-            localStorage.setItem('fbp_turns_left', turnsLeft);
-            localStorage.setItem('fbp_daily_tokens', dailyTokens);
+            localStorage.setItem('pybird_play_date', TODAY_KEY);
+            localStorage.setItem('pybird_turns_left', turnsLeft);
+            localStorage.setItem('pybird_daily_tokens', dailyTokens);
         }
 
         function updateUI() {
@@ -121,7 +121,7 @@
             if (turnsLeft <= 0) return;
 
             turnsLeft--;
-            localStorage.setItem('fbp_turns_left', turnsLeft);
+            localStorage.setItem('pybird_turns_left', turnsLeft);
             
             birdY = 300; velocity = 0; pipes = []; score = 0; 
             earnedThisGame = 0; gameOver = false;
@@ -163,10 +163,10 @@
         function triggerGameOver() {
             gameOver = true;
 
-            // 1 Điểm = 1 Token FBP
+            // 1 Điểm = 1 Token PYBIRD
             let potentialTokens = score * 1; 
             
-            // Kiếm tra xem có vượt quá giới hạn 10.000 token/ngày không
+            // Kiểm tra xem có vượt quá giới hạn 10.000 token/ngày không
             if (dailyTokens + potentialTokens > DAILY_TOKEN_LIMIT) {
                 earnedThisGame = Math.max(0, DAILY_TOKEN_LIMIT - dailyTokens);
             } else {
@@ -176,8 +176,8 @@
             dailyTokens += earnedThisGame;
             totalTokens += earnedThisGame;
 
-            localStorage.setItem('fbp_daily_tokens', dailyTokens);
-            localStorage.setItem('fbp_total_tokens', totalTokens);
+            localStorage.setItem('pybird_daily_tokens', dailyTokens);
+            localStorage.setItem('pybird_total_tokens', totalTokens);
             updateUI();
         }
 
@@ -203,7 +203,7 @@
             ctx.fillStyle = "#ffffff";
             ctx.font = "bold 32px sans-serif";
             ctx.textAlign = "center";
-            ctx.fillText("FLAPPY BIRD", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 40);
+            ctx.fillText("PYBIRD GAME", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 40);
 
             ctx.font = "16px sans-serif";
             if (turnsLeft > 0) {
@@ -252,7 +252,7 @@
 
                 ctx.font = "20px sans-serif";
                 ctx.fillStyle = "#f7d51d";
-                ctx.fillText("+" + earnedThisGame + " Token FBP", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 15);
+                ctx.fillText("+" + earnedThisGame + " Token PYBIRD", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 15);
 
                 if (dailyTokens >= DAILY_TOKEN_LIMIT) {
                     ctx.font = "14px sans-serif";
