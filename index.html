@@ -3,58 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Flappy Bird Mini App</title>
+    <title>Flappy Bird Token Mini App</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            user-select: none;
-            -webkit-user-select: none;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
         html, body {
-            width: 100%;
-            height: 100%;
-            background-color: #1a1a1a;
-            color: #ffffff;
+            width: 100%; height: 100%; background-color: #1a1a1a; color: #ffffff;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            position: fixed;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            overflow: hidden; position: fixed;
         }
         #user-info {
-            position: absolute;
-            top: 10px;
-            font-size: 14px;
-            font-weight: 600;
-            z-index: 10;
-            background: rgba(0, 0, 0, 0.4);
-            padding: 4px 12px;
-            border-radius: 20px;
+            position: absolute; top: 10px; font-size: 13px; font-weight: 600; z-index: 10;
+            background: rgba(0, 0, 0, 0.65); padding: 8px 16px; border-radius: 16px; text-align: center;
+            line-height: 1.4; border: 1px solid rgba(255,255,255,0.1);
         }
-        #game-container {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            background: #70c5ce;
-        }
+        #game-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+        canvas { display: block; width: 100%; height: 100%; object-fit: cover; background: #70c5ce; }
+        .highlight { color: #f7d51d; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div id="user-info">Xin chào, <span id="username">Bạn</span>! 🎮</div>
+    <div id="user-info">
+        👤 <span id="username">Player</span> | 🪙 Tổng: <span id="total-tokens" class="highlight">0</span> FBP<br>
+        ⚡ Lượt hôm nay: <span id="turns-left" class="highlight">10</span>/10 | 🎯 Hôm nay: <span id="daily-tokens" class="highlight">0</span>/10.000 FBP
+    </div>
     
     <div id="game-container">
         <canvas id="birdCanvas"></canvas>
@@ -64,83 +38,105 @@
         const tg = window.Telegram.WebApp;
         tg.expand();
 
+        let userName = "Player";
         if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-            document.getElementById('username').innerText = tg.initDataUnsafe.user.first_name;
+            userName = tg.initDataUnsafe.user.first_name;
+            document.getElementById('username').innerText = userName;
         }
 
+        // --- CẤU HÌNH TOKEN & GIỚI HẠN ---
+        const DAILY_TOKEN_LIMIT = 10000; // Tối đa 10.000 token/ngày
+        const DAILY_TURN_LIMIT = 10;     // Tối đa 10 lượt chơi/ngày
+
+        // --- QUẢN LÝ DỮ LIỆU BẰNG LOCALSTORAGE ---
+        const TODAY_KEY = new Date().toISOString().slice(0, 10);
+        let lastPlayDate = localStorage.getItem('fbp_play_date');
+        
+        let totalTokens = parseInt(localStorage.getItem('fbp_total_tokens') || '0');
+        let dailyTokens = parseInt(localStorage.getItem('fbp_daily_tokens') || '0');
+        let turnsLeft = parseInt(localStorage.getItem('fbp_turns_left') || DAILY_TURN_LIMIT.toString());
+
+        // Sang ngày mới: Reset lượt chơi và hạn mức ngày
+        if (lastPlayDate !== TODAY_KEY) {
+            turnsLeft = DAILY_TURN_LIMIT;
+            dailyTokens = 0;
+            localStorage.setItem('fbp_play_date', TODAY_KEY);
+            localStorage.setItem('fbp_turns_left', turnsLeft);
+            localStorage.setItem('fbp_daily_tokens', dailyTokens);
+        }
+
+        function updateUI() {
+            document.getElementById('total-tokens').innerText = totalTokens.toLocaleString();
+            document.getElementById('daily-tokens').innerText = dailyTokens.toLocaleString();
+            document.getElementById('turns-left').innerText = turnsLeft;
+        }
+        updateUI();
+
+        // --- GAME LOGIC ---
         const canvas = document.getElementById('birdCanvas');
         const ctx = canvas.getContext('2d');
 
-        // Thiết lập kích thước khung hiển thị chuẩn tỷ lệ dọc cho game
         const CANVAS_WIDTH = 400;
         const CANVAS_HEIGHT = 700;
         canvas.width = CANVAS_WIDTH;
         canvas.height = CANVAS_HEIGHT;
 
-        // Tạo hình ảnh chú chim SVG
         const birdImg = new Image();
         birdImg.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 30"><ellipse cx="20" cy="15" rx="18" ry="13" fill="%23f7d51d" stroke="%23000" stroke-width="2"/><ellipse cx="12" cy="17" rx="7" ry="5" fill="%23fff" stroke="%23000" stroke-width="1.5"/><circle cx="28" cy="10" r="5" fill="%23fff" stroke="%23000" stroke-width="1.5"/><circle cx="29" cy="10" r="2" fill="%23000"/><path d="M 32 14 Q 40 16 33 20 Z" fill="%23e74c3c" stroke="%23000" stroke-width="1.5"/></svg>';
 
-        let birdX = 90;
-        let birdY = 300;
-        let birdRadius = 18;
-        let gravity = 0.25;
-        let velocity = 0;
-        let jump = -5.2;
-        let score = 0;
-        let gameOver = false;
-
-        let pipes = [];
-        let pipeWidth = 65;
-        let pipeGap = 160;
-        let pipeSpeed = 2.2;
+        let birdX = 90, birdY = 300, birdRadius = 18;
+        let gravity = 0.25, velocity = 0, jump = -5.2;
+        let score = 0, gameOver = false, gameStarted = false;
+        let pipes = [], pipeWidth = 65, pipeGap = 160, pipeSpeed = 2.2;
+        let earnedThisGame = 0;
 
         function createPipe() {
             let topHeight = Math.floor(Math.random() * (CANVAS_HEIGHT - pipeGap - 200)) + 60;
-            pipes.push({
-                x: CANVAS_WIDTH,
-                top: topHeight,
-                bottom: CANVAS_HEIGHT - topHeight - pipeGap,
-                passed: false
-            });
+            pipes.push({ x: CANVAS_WIDTH, top: topHeight, bottom: CANVAS_HEIGHT - topHeight - pipeGap, passed: false });
         }
 
         function handleInput() {
-            if (gameOver) {
+            if (turnsLeft <= 0 && !gameStarted) return;
+
+            if (!gameStarted) {
+                gameStarted = true;
                 resetGame();
+                return;
+            }
+
+            if (gameOver) {
+                if (turnsLeft > 0) {
+                    resetGame();
+                }
             } else {
                 velocity = jump;
             }
         }
 
-        document.addEventListener('keydown', (e) => {
-            if (e.code === 'Space') handleInput();
-        });
-        canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            handleInput();
-        }, { passive: false });
+        document.addEventListener('keydown', (e) => { if (e.code === 'Space') handleInput(); });
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput(); }, { passive: false });
         canvas.addEventListener('mousedown', handleInput);
 
         function resetGame() {
-            birdY = 300;
-            velocity = 0;
-            pipes = [];
-            score = 0;
-            gameOver = false;
+            if (turnsLeft <= 0) return;
+
+            turnsLeft--;
+            localStorage.setItem('fbp_turns_left', turnsLeft);
+            
+            birdY = 300; velocity = 0; pipes = []; score = 0; 
+            earnedThisGame = 0; gameOver = false;
+            updateUI();
             createPipe();
             loop();
         }
 
         function update() {
             if (gameOver) return;
-
             velocity += gravity;
             birdY += velocity;
 
-            // Va chạm sàn hoặc trần
             if (birdY + birdRadius >= CANVAS_HEIGHT - 40 || birdY - birdRadius <= 0) {
-                gameOver = true;
+                triggerGameOver();
             }
 
             if (pipes.length === 0 || pipes[pipes.length - 1].x < CANVAS_WIDTH - 200) {
@@ -151,67 +147,86 @@
                 let p = pipes[i];
                 p.x -= pipeSpeed;
 
-                // Va chạm ống nước
-                if (
-                    birdX + birdRadius > p.x && 
-                    birdX - birdRadius < p.x + pipeWidth && 
-                    (birdY - birdRadius < p.top || birdY + birdRadius > CANVAS_HEIGHT - p.bottom)
-                ) {
-                    gameOver = true;
+                if (birdX + birdRadius > p.x && birdX - birdRadius < p.x + pipeWidth && 
+                    (birdY - birdRadius < p.top || birdY + birdRadius > CANVAS_HEIGHT - p.bottom)) {
+                    triggerGameOver();
                 }
 
-                // Tính điểm
                 if (!p.passed && p.x + pipeWidth < birdX) {
                     p.passed = true;
                     score++;
                 }
             }
+            if (pipes.length > 0 && pipes[0].x < -pipeWidth) pipes.shift();
+        }
 
-            if (pipes.length > 0 && pipes[0].x < -pipeWidth) {
-                pipes.shift();
+        function triggerGameOver() {
+            gameOver = true;
+
+            // 1 Điểm = 1 Token FBP
+            let potentialTokens = score * 1; 
+            
+            // Kiếm tra xem có vượt quá giới hạn 10.000 token/ngày không
+            if (dailyTokens + potentialTokens > DAILY_TOKEN_LIMIT) {
+                earnedThisGame = Math.max(0, DAILY_TOKEN_LIMIT - dailyTokens);
+            } else {
+                earnedThisGame = potentialTokens;
             }
+
+            dailyTokens += earnedThisGame;
+            totalTokens += earnedThisGame;
+
+            localStorage.setItem('fbp_daily_tokens', dailyTokens);
+            localStorage.setItem('fbp_total_tokens', totalTokens);
+            updateUI();
         }
 
         function drawBackground() {
-            // Nền trời
             ctx.fillStyle = "#70c5ce";
             ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-            // Mây trang trí
-            ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
-            ctx.beginPath();
-            ctx.arc(80, 120, 25, 0, Math.PI * 2);
-            ctx.arc(110, 105, 35, 0, Math.PI * 2);
-            ctx.arc(140, 120, 25, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Đất cỏ phía dưới
             ctx.fillStyle = "#ded895";
             ctx.fillRect(0, CANVAS_HEIGHT - 40, CANVAS_WIDTH, 40);
             ctx.fillStyle = "#73bf2e";
             ctx.fillRect(0, CANVAS_HEIGHT - 40, CANVAS_WIDTH, 12);
         }
 
+        function drawInitialScreen() {
+            drawBackground();
+            ctx.save();
+            ctx.translate(birdX, birdY);
+            ctx.drawImage(birdImg, -24, -18, 48, 36);
+            ctx.restore();
+
+            ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 32px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText("FLAPPY BIRD", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 40);
+
+            ctx.font = "16px sans-serif";
+            if (turnsLeft > 0) {
+                ctx.fillText("Chạm màn hình để bắt đầu", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 10);
+            } else {
+                ctx.fillStyle = "#ff4d4d";
+                ctx.fillText("Hết lượt chơi hôm nay!", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 10);
+                ctx.font = "14px sans-serif";
+                ctx.fillStyle = "#cccccc";
+                ctx.fillText("Quay lại vào ngày mai nhé.", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 40);
+            }
+            ctx.textAlign = "left";
+        }
+
         function draw() {
             drawBackground();
-
-            // Vẽ các cột
             for (let i = 0; i < pipes.length; i++) {
                 let p = pipes[i];
-
-                // Cột trên
                 ctx.fillStyle = "#73bf2e";
                 ctx.fillRect(p.x, 0, pipeWidth, p.top);
-                ctx.strokeStyle = "#53801b";
-                ctx.lineWidth = 4;
-                ctx.strokeRect(p.x, 0, pipeWidth, p.top);
-
-                // Cột dưới
                 ctx.fillRect(p.x, CANVAS_HEIGHT - p.bottom, pipeWidth, p.bottom);
-                ctx.strokeRect(p.x, CANVAS_HEIGHT - p.bottom, pipeWidth, p.bottom);
             }
 
-            // Vẽ chim
             ctx.save();
             ctx.translate(birdX, birdY);
             let angle = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, velocity * 0.07));
@@ -219,26 +234,41 @@
             ctx.drawImage(birdImg, -24, -18, 48, 36);
             ctx.restore();
 
-            // Điểm số
             ctx.fillStyle = "#ffffff";
             ctx.strokeStyle = "#000000";
             ctx.lineWidth = 4;
             ctx.font = "bold 36px sans-serif";
-            ctx.strokeText("Điểm: " + score, 20, 60);
-            ctx.fillText("Điểm: " + score, 20, 60);
+            ctx.strokeText("Điểm: " + score, 20, 110);
+            ctx.fillText("Điểm: " + score, 20, 110);
 
-            // Màn hình Game Over
             if (gameOver) {
-                ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+                ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
                 ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
                 ctx.fillStyle = "#ffffff";
-                ctx.font = "bold 38px sans-serif";
+                ctx.font = "bold 36px sans-serif";
                 ctx.textAlign = "center";
-                ctx.fillText("GAME OVER", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 20);
+                ctx.fillText("GAME OVER", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
 
                 ctx.font = "20px sans-serif";
-                ctx.fillText("Chạm để chơi lại", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 30);
+                ctx.fillStyle = "#f7d51d";
+                ctx.fillText("+" + earnedThisGame + " Token FBP", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 15);
+
+                if (dailyTokens >= DAILY_TOKEN_LIMIT) {
+                    ctx.font = "14px sans-serif";
+                    ctx.fillStyle = "#ff9900";
+                    ctx.fillText("⚠️ Đã đạt giới hạn 10.000 Token/ngày!", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 15);
+                }
+
+                ctx.font = "16px sans-serif";
+                ctx.fillStyle = "#ffffff";
+                if (turnsLeft > 0) {
+                    ctx.fillText("Còn lại: " + turnsLeft + " lượt chơi", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 50);
+                    ctx.fillText("Chạm để tiếp tục", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 80);
+                } else {
+                    ctx.fillStyle = "#ff4d4d";
+                    ctx.fillText("Đã hết lượt chơi hôm nay!", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 60);
+                }
                 ctx.textAlign = "left";
             }
         }
@@ -246,13 +276,12 @@
         function loop() {
             update();
             draw();
-            if (!gameOver) {
+            if (!gameOver && gameStarted) {
                 requestAnimationFrame(loop);
             }
         }
 
-        createPipe();
-        loop();
+        drawInitialScreen();
     </script>
 </body>
 </html>
