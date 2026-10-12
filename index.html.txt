@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Flappy Bird Telegram Mini App</title>
+    <!-- Nhúng Telegram Web App SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #user-info {
+            margin-bottom: 10px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        canvas {
+            border: 2px solid #fff;
+            background-color: #70c5ce;
+            box-shadow: 0px 0px 10px rgba(0,0,0,0.5);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="user-info">Đang tải thông tin người dùng...</div>
+    <canvas id="gameCanvas" width="320" height="480"></canvas>
+
+    <script>
+        // --- 1. TÍCH HỢP TELEGRAM MINI APP SDK ---
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // Mở rộng toàn màn hình Mini App
+
+        const userInfoDiv = document.getElementById('user-info');
+        if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+            const user = tg.initDataUnsafe.user;
+            userInfoDiv.innerText = `Xin chào, ${user.first_name || 'Gamer'}! 🎮`;
+        } else {
+            userInfoDiv.innerText = `Chế độ chơi thử (Browser)`;
+        }
+
+        // --- 2. LOGIC GAME FLAPPY BIRD ---
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        // Biến game
+        let bird = { x: 50, y: 150, width: 20, height: 20, gravity: 0.6, lift: -10, velocity: 0 };
+        let pipes = [];
+        let pipeWidth = 40;
+        let pipeGap = 120;
+        let frameCount = 0;
+        let score = 0;
+        let isGameOver = false;
+
+        // Xử lý sự kiện chạm/click để bay lên
+        function jump() {
+            if (isGameOver) {
+                resetGame();
+            } else {
+                bird.velocity = bird.lift;
+            }
+        }
+
+        window.addEventListener("keydown", function(e) {
+            if (e.code === "Space") jump();
+        });
+        canvas.addEventListener("click", jump);
+        canvas.addEventListener("touchstart", function(e) {
+            e.preventDefault();
+            jump();
+        });
+
+        function resetGame() {
+            bird.y = 150;
+            bird.velocity = 0;
+            pipes = [];
+            score = 0;
+            frameCount = 0;
+            isGameOver = false;
+            loop();
+        }
+
+        // Sinh ống cản ngẫu nhiên
+        function spawnPipe() {
+            let minHeight = 50;
+            let maxHeight = canvas.height - pipeGap - 50;
+            let height = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
+            pipes.push({
+                x: canvas.width,
+                top: height,
+                bottom: canvas.height - height - pipeGap,
+                passed: false
+            });
+        }
+
+        function update() {
+            if (isGameOver) return;
+
+            // Vật lý của chim
+            bird.velocity += bird.gravity;
+            bird.y += bird.velocity;
+
+            // Kiểm tra chạm đất hoặc bay quá cao
+            if (bird.y + bird.height >= canvas.height || bird.y <= 0) {
+                endGame();
+            }
+
+            // Xử lý ống
+            if (frameCount % 90 === 0) {
+                spawnPipe();
+            }
+
+            for (let i = pipes.length - 1; i >= 0; i--) {
+                pipes[i].x -= 2;
+
+                // Kiểm tra va chạm chim và ống
+                if (
+                    bird.x < pipes[i].x + pipeWidth &&
+                    bird.x + bird.width > pipes[i].x &&
+                    (bird.y < pipes[i].top || bird.y + bird.height > canvas.height - pipes[i].bottom)
+                ) {
+                    endGame();
+                }
+
+                // Tính điểm khi vượt qua ống
+                if (!pipes[i].passed && pipes[i].x + pipeWidth < bird.x) {
+                    score++;
+                    pipes[i].passed = true;
+                }
+
+                // Xóa ống khi ra khỏi màn hình
+                if (pipes[i].x + pipeWidth < 0) {
+                    pipes.splice(i, 1);
+                }
+            }
+
+            frameCount++;
+        }
+
+        function endGame() {
+            isGameOver = true;
+            // Rung điện thoại khi thua (nếu chạy trên Telegram App)
+            if (window.Telegram && window.Telegram.WebApp.HapticFeedback) {
+                window.Telegram.WebApp.HapticFeedback.notificationOccurred('error');
+            }
+        }
+
+        function draw() {
+            // Xóa màn hình
+            ctx.fillStyle = "#70c5ce";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Vẽ ống
+            ctx.fillStyle = "#73bf2e";
+            for (let i = 0; i < pipes.length; i++) {
+                // Ống trên
+                ctx.fillRect(pipes[i].x, 0, pipeWidth, pipes[i].top);
+                // Ống dưới
+                ctx.fillRect(pipes[i].x, canvas.height - pipes[i].bottom, pipeWidth, pipes[i].bottom);
+            }
+
+            // Vẽ chim
+            ctx.fillStyle = "#f8e71c";
+            ctx.fillRect(bird.x, bird.y, bird.width, bird.height);
+
+            // Hiển thị điểm số
+            ctx.fillStyle = "#fff";
+            ctx.font = "20px Arial";
+            ctx.fillText(`Điểm: ${score}`, 15, 30);
+
+            // Màn hình Game Over
+            if (isGameOver) {
+                ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = "#fff";
+                ctx.font = "24px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 20);
+                ctx.font = "16px Arial";
+                ctx.fillText("Chạm để chơi lại", canvas.width / 2, canvas.height / 2 + 20);
+                ctx.textAlign = "left";
+            }
+        }
+
+        function loop() {
+            update();
+            draw();
+            if (!isGameOver) {
+                requestAnimationFrame(loop);
+            }
+        }
+
+        // Bắt đầu trò chơi
+        loop();
+    </script>
+</body>
+</html>
